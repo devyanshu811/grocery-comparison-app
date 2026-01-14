@@ -1,35 +1,9 @@
-export interface Store {
-  id: string
-  name: string
-  logo: string
-  deliveryTime: string
-}
+/**
+ * Type Definitions
+ * Re-export types from models for backward compatibility
+ */
 
-export interface Product {
-  id: string
-  name: string
-  image: string
-  quantity: string
-  category: string
-  prices: {
-    storeId: string
-    price: number
-  }[]
-}
+export type {
+  CartItem, Category, ComparisonProduct, Product, Store
+} from "../app/models/types";
 
-export interface CartItem {
-  productId: string
-  quantity: number
-  selectedStoreId: string
-}
-
-export interface ComparisonProduct {
-  id: string
-  name: string
-  image: string
-  quantity: string
-  prices: {
-    store: Store
-    price: number
-  }[]
-}

@@ -1,30 +1,63 @@
-# Grocery comparison app
+# Grocery Comparison App
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+A modern grocery price comparison application built with Next.js, featuring a layered architecture pattern.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/sohambiswas-5894s-projects/v0-grocery-comparison-app)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/ijjGB8PpGeD)
+## 🏗️ Architecture
 
-## Overview
+This application follows a **layered architecture pattern** with clear separation of concerns:
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+- **Server Layer**: Request routing and orchestration
+- **Middleware Layer**: Authentication, CORS, request processing
+- **Controller Layer**: Business logic and validation
+- **Model Layer**: Data models and operations
+- **Database Layer**: Database abstraction
 
-## Deployment
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed documentation.
 
-Your project is live at:
+## 🚀 Getting Started
 
-**[https://vercel.com/sohambiswas-5894s-projects/v0-grocery-comparison-app](https://vercel.com/sohambiswas-5894s-projects/v0-grocery-comparison-app)**
+```bash
+# Install dependencies
+npm install
 
-## Build your app
+# Run development server
+npm run dev
 
-Continue building your app on:
+# Build for production
+npm run build
 
-**[https://v0.app/chat/ijjGB8PpGeD](https://v0.app/chat/ijjGB8PpGeD)**
+# Start production server
+npm start
+```
 
-## How It Works
+## 📁 Project Structure
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+```
+app/
+├── api/              # Next.js API Routes
+├── server/            # Server Layer
+├── middleware/        # Middleware Layer
+├── controller/        # Controller Layer
+├── models/            # Model Layer
+├── database/          # Database Layer
+└── init.ts           # Application initialization
+
+lib/
+├── api.ts            # API client functions
+├── types.ts          # Type definitions
+└── store.ts          # State management
+```
+
+## 🔧 Features
+
+- Price comparison across multiple stores
+- Product search and filtering
+- Category-based browsing
+- Shopping cart management
+- JSON-RPC API
+- RESTful API endpoints
+
+## 📚 Documentation
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Detailed architecture documentation
+- [README-ARCHITECTURE.md](./README-ARCHITECTURE.md) - Quick architecture reference

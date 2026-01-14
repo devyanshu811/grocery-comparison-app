@@ -1,10 +1,11 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
-import "./globals.css"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { StickyCartBar } from "@/components/sticky-cart-bar"
+import { Analytics } from "@vercel/analytics/next"
+import type { Metadata } from "next"
+import { Geist, Geist_Mono } from "next/font/google"
+import type React from "react"
+import "./globals.css"
+import { initializeApp } from "./init"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -40,11 +41,14 @@ export const viewport = {
   themeColor: "#66bb6a",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Initialize application on server startup
+  await initializeApp()
+
   return (
     <html lang="en">
       <body className={`font-sans antialiased`}>
