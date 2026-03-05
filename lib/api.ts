@@ -74,27 +74,27 @@ export async function getCategory(id: string): Promise<Category | null> {
 }
 
 /**
- * Product API functions
+ * Product API functions (pincode used for location-specific pricing/delivery)
  */
-export async function searchProducts(query: string): Promise<Product[]> {
-  return apiRequest<Product[]>("product.search", { query })
+export async function searchProducts(query: string, pincode?: string): Promise<Product[]> {
+  return apiRequest<Product[]>("product.search", { query, pincode })
 }
 
-export async function getProductsByCategory(category: string): Promise<Product[]> {
-  return apiRequest<Product[]>("product.getByCategory", { category })
+export async function getProductsByCategory(category: string, pincode?: string): Promise<Product[]> {
+  return apiRequest<Product[]>("product.getByCategory", { category, pincode })
 }
 
-export async function getProduct(id: string): Promise<Product | null> {
-  return apiRequest<Product | null>("product.get", { id })
+export async function getProduct(id: string, pincode?: string): Promise<Product | null> {
+  return apiRequest<Product | null>("product.get", { id, pincode })
 }
 
-export async function getProductComparison(productId: string): Promise<ComparisonProduct | null> {
-  return apiRequest<ComparisonProduct | null>("product.comparison", { id: productId })
+export async function getProductComparison(productId: string, pincode?: string): Promise<ComparisonProduct | null> {
+  return apiRequest<ComparisonProduct | null>("product.comparison", { id: productId, pincode })
 }
 
-export async function listProducts(filters?: {
-  category?: string
-  search?: string
-}): Promise<Product[]> {
-  return apiRequest<Product[]>("product.list", filters || {})
+export async function listProducts(
+  filters?: { category?: string; search?: string },
+  pincode?: string
+): Promise<Product[]> {
+  return apiRequest<Product[]>("product.list", { ...filters, pincode })
 }

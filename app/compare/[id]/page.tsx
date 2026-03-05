@@ -6,23 +6,27 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { getProductComparison } from "@/lib/api"
 import type { ComparisonProduct } from "@/lib/types"
+import { useStore } from "@/lib/store"
+import { DeliveringToBanner } from "@/components/location-selector"
 import { ChevronLeft, ExternalLink, ShoppingCart } from "lucide-react"
 
 export default function ComparisonPage() {
   const params = useParams()
   const router = useRouter()
   const productId = params.id as string
+  const { location } = useStore()
+  const pincode = location.pincode || undefined
   const [product, setProduct] = useState<ComparisonProduct | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const loadProduct = async () => {
-      const data = await getProductComparison(productId)
+      const data = await getProductComparison(productId, pincode)
       setProduct(data)
       setLoading(false)
     }
     loadProduct()
-  }, [productId])
+  }, [productId, pincode])
 
   if (loading) {
     return (
@@ -57,12 +61,13 @@ export default function ComparisonPage() {
     <main className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => router.back()}>
               <ChevronLeft className="w-5 h-5" />
             </Button>
             <h1 className="text-xl font-bold text-primary">Compare Prices</h1>
+            <DeliveringToBanner className="hidden sm:flex" />
           </div>
           <Button variant="ghost" size="sm">
             Cart

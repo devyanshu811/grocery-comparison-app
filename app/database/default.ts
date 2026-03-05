@@ -4,6 +4,7 @@
  */
 
 import type { Category, Product, Session, Store, User } from "../models/types"
+import { getLocationCatalogProducts } from "./location-catalog"
 
 // Mock database storage
 const mockDatabase = {
@@ -95,18 +96,24 @@ class MockDatabase implements Database {
 
   async listProducts(filters?: any): Promise<Product[]> {
     let products = Array.from(mockDatabase.products.values())
-    
-    if (filters?.category) {
-      products = products.filter(p => p.category === filters.category)
+    if (!filters || (filters && !filters.category && !filters.search)) return products
+
+    if (filters.category) {
+      const cat = String(filters.category).trim().toLowerCase()
+      if (cat) products = products.filter((p) => p.category.toLowerCase() === cat)
     }
-    
-    if (filters?.search) {
-      const searchLower = filters.search.toLowerCase()
-      products = products.filter(p => 
-        p.name.toLowerCase().includes(searchLower)
-      )
+
+    if (filters.search) {
+      const searchLower = String(filters.search).trim().toLowerCase()
+      if (searchLower) {
+        products = products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(searchLower) ||
+            p.category.toLowerCase().includes(searchLower)
+        )
+      }
     }
-    
+
     return products
   }
 
@@ -201,110 +208,32 @@ export const db: Database = new MockDatabase()
 export async function initDatabase() {
   const now = new Date()
 
-  // Initialize stores
+  // Initialize stores (all 8 grocery apps for price comparison)
   const stores: Store[] = [
-    { id: "1", name: "BigBasket", logo: "🛒", deliveryTime: "30-45 mins", status: "active", createdAt: now },
-    { id: "2", name: "Zepto", logo: "⚡", deliveryTime: "10-15 mins", status: "active", createdAt: now },
-    { id: "3", name: "Blinkit", logo: "🚀", deliveryTime: "5-10 mins", status: "active", createdAt: now },
-    { id: "4", name: "Amazon Fresh", logo: "📦", deliveryTime: "45-60 mins", status: "active", createdAt: now },
+    { id: "swiggy", name: "Swiggy Instamart", logo: "🛒", deliveryTime: "13 mins", status: "active", createdAt: now },
+    { id: "blinkit", name: "Blinkit", logo: "⚡", deliveryTime: "17 mins", status: "active", createdAt: now },
+    { id: "zepto", name: "Zepto", logo: "📦", deliveryTime: "N/A", status: "active", createdAt: now },
+    { id: "bigbasket", name: "Bigbasket", logo: "🥬", deliveryTime: "N/A", status: "active", createdAt: now },
+    { id: "amazon_now", name: "Amazon Now", logo: "📦", deliveryTime: "N/A", status: "active", createdAt: now },
+    { id: "flipkart_minutes", name: "Flipkart MINUTES", logo: "🔴", deliveryTime: "N/A", status: "active", createdAt: now },
+    { id: "jiomart", name: "Jio Mart", logo: "🛒", deliveryTime: "Quick Delivery", status: "active", createdAt: now },
+    { id: "dmart_ready", name: "D'Mart Ready", logo: "🟢", deliveryTime: "N/A", status: "active", createdAt: now },
   ]
 
-  // Initialize categories
+  // Initialize categories (match location catalog: Grains, Vegetables, Dairy, Spices, Snacks, Fruits, Beverages, Personal Care)
   const categories: Category[] = [
     { id: "1", name: "Grains & Rice", icon: "🌾" },
     { id: "2", name: "Vegetables", icon: "🥕" },
     { id: "3", name: "Dairy & Eggs", icon: "🥛" },
     { id: "4", name: "Spices", icon: "🌶️" },
     { id: "5", name: "Snacks", icon: "🍿" },
+    { id: "6", name: "Fruits", icon: "🍎" },
+    { id: "7", name: "Beverages", icon: "🥤" },
+    { id: "8", name: "Personal Care", icon: "🧴" },
   ]
 
-  // Initialize products
-  const products: Product[] = [
-    {
-      id: "1",
-      name: "Basmati Rice (1kg)",
-      image: "/red-apples.png",
-      quantity: "1 kg",
-      category: "Grains & Rice",
-      prices: [
-        { storeId: "1", price: 349 },
-        { storeId: "2", price: 369 },
-        { storeId: "3", price: 329 },
-      ],
-      status: "active",
-      createdAt: now,
-    },
-    {
-      id: "2",
-      name: "Organic Tomatoes",
-      image: "/orange-carrots.jpg",
-      quantity: "500g",
-      category: "Vegetables",
-      prices: [
-        { storeId: "1", price: 45 },
-        { storeId: "2", price: 38 },
-        { storeId: "4", price: 52 },
-      ],
-      status: "active",
-      createdAt: now,
-    },
-    {
-      id: "3",
-      name: "Amul Milk",
-      image: "/milk-carton.png",
-      quantity: "1L",
-      category: "Dairy & Eggs",
-      prices: [
-        { storeId: "1", price: 59 },
-        { storeId: "2", price: 61 },
-        { storeId: "3", price: 57 },
-      ],
-      status: "active",
-      createdAt: now,
-    },
-    {
-      id: "4",
-      name: "Turmeric Powder",
-      image: "/mixed-nuts-snack.jpg",
-      quantity: "100g",
-      category: "Spices",
-      prices: [
-        { storeId: "1", price: 89 },
-        { storeId: "3", price: 79 },
-        { storeId: "4", price: 99 },
-      ],
-      status: "active",
-      createdAt: now,
-    },
-    {
-      id: "5",
-      name: "Lay's Chips (Classic)",
-      image: "/orange-juice-bottle.jpg",
-      quantity: "40g",
-      category: "Snacks",
-      prices: [
-        { storeId: "2", price: 25 },
-        { storeId: "1", price: 28 },
-        { storeId: "3", price: 22 },
-      ],
-      status: "active",
-      createdAt: now,
-    },
-    {
-      id: "6",
-      name: "Indian Bananas",
-      image: "/yellow-bananas.jpg",
-      quantity: "1 kg",
-      category: "Grains & Rice",
-      prices: [
-        { storeId: "1", price: 49 },
-        { storeId: "2", price: 42 },
-        { storeId: "3", price: 45 },
-      ],
-      status: "active",
-      createdAt: now,
-    },
-  ]
+  // Products available "in stores" for the user's location (full catalog; real data would come from GROCERY_API_URL)
+  const products: Product[] = getLocationCatalogProducts()
 
   // Initialize in parallel for better performance
   await Promise.all([

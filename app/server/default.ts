@@ -9,6 +9,7 @@ import { CategoryController } from "../controller/category"
 import { ProductController } from "../controller/product"
 import { StoreController } from "../controller/store"
 import { initDatabase } from "../database/default"
+import { initializeApp } from "../init"
 import { authenticateSession, createRequestContext, errorResponse, jsonRpcResponse, successResponse, type RequestContext } from "../middleware/default"
 
 /**
@@ -166,6 +167,7 @@ export async function handleRpcRequest(request: NextRequest) {
   let id: string | number | null = null
 
   try {
+    await initializeApp()
     body = await request.json()
     const { jsonrpc, method, params, id: requestId, token } = body
     id = requestId || null

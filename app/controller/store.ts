@@ -71,4 +71,3 @@ export class StoreController {
     return await StoreModel.delete(id)
   }
 }
-

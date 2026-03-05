@@ -1,17 +1,26 @@
 import { create } from "zustand"
+import { persist } from "zustand/middleware"
 import type { CartItem } from "./types"
 
+const LOCATION_STORAGE_KEY = "pricehub-location"
+
+export interface LocationState {
+  city: string
+  pincode: string
+}
+
 interface StoreState {
-  location: {
-    city: string
-    pincode: string
-  }
+  location: LocationState
   searchQuery: string
   cartItems: CartItem[]
   selectedCategory: string
+  /** True after user has been prompted for location (so we don't block forever) */
+  locationPromptShown: boolean
 
   // Location actions
   setLocation: (city: string, pincode: string) => void
+  setLocationPromptShown: (shown: boolean) => void
+  hasLocation: () => boolean
 
   // Search actions
   setSearchQuery: (query: string) => void
@@ -26,17 +35,25 @@ interface StoreState {
   setSelectedCategory: (category: string) => void
 }
 
-export const useStore = create<StoreState>((set) => ({
-  location: {
-    city: "New York",
-    pincode: "10001",
-  },
-  searchQuery: "",
-  cartItems: [],
-  selectedCategory: "",
+export const useStore = create<StoreState>()(
+  persist(
+    (set, get) => ({
+      location: {
+        city: "",
+        pincode: "",
+      },
+      searchQuery: "",
+      cartItems: [],
+      selectedCategory: "",
+      locationPromptShown: false,
 
-  setLocation: (city, pincode) => set({ location: { city, pincode } }),
-  setSearchQuery: (query) => set({ searchQuery: query }),
+      setLocation: (city, pincode) => set({ location: { city: city || "Your area", pincode: pincode || "" } }),
+      setLocationPromptShown: (shown) => set({ locationPromptShown: shown }),
+      hasLocation: () => {
+        const { location } = get()
+        return !!(location.pincode || location.city)
+      },
+      setSearchQuery: (query) => set({ searchQuery: query }),
 
   addToCart: (productId, quantity, storeId) =>
     set((state) => ({
@@ -55,4 +72,7 @@ export const useStore = create<StoreState>((set) => ({
 
   clearCart: () => set({ cartItems: [] }),
   setSelectedCategory: (category) => set({ selectedCategory: category }),
-}))
+}),
+    { name: LOCATION_STORAGE_KEY, partialize: (s) => ({ location: s.location }) }
+  )
+)

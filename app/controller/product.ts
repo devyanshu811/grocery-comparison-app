@@ -1,31 +1,36 @@
 /**
  * Product Controller
- * Business logic for product operations
+ * Business logic for product operations (uses grocery provider for read operations)
  */
 
 import type { RequestContext } from "../middleware/default"
 import { ProductModel } from "../models/product"
 import { StoreModel } from "../models/store"
+import { getProvider } from "../providers"
 import type { ComparisonProduct, Product } from "../models/types"
 
 export class ProductController {
   /**
-   * Get product by ID
+   * Get product by ID (via provider for consistent data source)
    */
   static async get(req: RequestContext): Promise<Product | null> {
-    const { id } = req.params
+    const { id, pincode } = req.params
     if (!id) {
       throw new Error("Product ID is required")
     }
-    return await ProductModel.get(id)
+    return await getProvider().getProduct(id, pincode)
   }
 
   /**
-   * List products with filters
+   * List products with filters (via provider)
    */
   static async list(req: RequestContext): Promise<Product[]> {
-    const { category, search, status } = req.params
-    return await ProductModel.list({ category, search, status })
+    const { category, search, status, pincode } = req.params
+    const provider = getProvider()
+    return await provider.listProducts(
+      { category, search },
+      pincode
+    )
   }
 
   /**
@@ -74,24 +79,22 @@ export class ProductController {
   }
 
   /**
-   * Get product comparison across stores
+   * Get product comparison across stores (via provider; uses all 8 stores)
    */
   static async getComparison(req: RequestContext): Promise<ComparisonProduct | null> {
-    const { id } = req.params
+    const { id, pincode } = req.params
     if (!id) {
       throw new Error("Product ID is required")
     }
 
-    const product = await ProductModel.get(id)
+    const product = await getProvider().getProduct(id, pincode)
     if (!product) {
       return null
     }
 
-    // Get all stores
     const stores = await StoreModel.list()
     const storeMap = new Map(stores.map(s => [s.id, s]))
 
-    // Build comparison
     const comparison: ComparisonProduct = {
       id: product.id,
       name: product.name,
@@ -106,32 +109,33 @@ export class ProductController {
             price: price.price,
           }
         })
-        .filter(Boolean) as any,
+        .filter(Boolean) as ComparisonProduct["prices"],
     }
 
     return comparison
   }
 
   /**
-   * Search products
+   * Search products (via provider)
    */
   static async search(req: RequestContext): Promise<Product[]> {
-    const { query } = req.params
-    if (!query) {
-      return await ProductModel.list()
+    const { query, pincode } = req.params
+    const q = typeof query === "string" ? query.trim() : ""
+    if (!q) {
+      return await getProvider().listProducts({}, pincode)
     }
-    return await ProductModel.list({ search: query })
+    return await getProvider().searchProducts(q, pincode)
   }
 
   /**
-   * Get products by category
+   * Get products by category (via provider)
    */
   static async getByCategory(req: RequestContext): Promise<Product[]> {
-    const { category } = req.params
+    const { category, pincode } = req.params
     if (!category) {
-      return await ProductModel.list()
+      return await getProvider().listProducts({}, pincode)
     }
-    return await ProductModel.list({ category })
+    return await getProvider().getProductsByCategory(category, pincode)
   }
 }
 

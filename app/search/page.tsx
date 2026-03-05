@@ -5,8 +5,10 @@ import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { FilterSidebar } from "@/components/filter-sidebar"
 import { ProductCard } from "@/components/product-card"
-import { searchProducts, getProductsByCategory, getStores } from "@/lib/api"
+import { searchProducts, getProductsByCategory, getStores, listProducts } from "@/lib/api"
 import type { Product, Store } from "@/lib/types"
+import { useStore } from "@/lib/store"
+import { DeliveringToBanner } from "@/components/location-selector"
 import { ChevronLeft, Filter, X } from "lucide-react"
 import Link from "next/link"
 
@@ -14,24 +16,38 @@ function SearchContent() {
   const searchParams = useSearchParams()
   const query = searchParams.get("q") || ""
   const category = searchParams.get("category") || ""
+  const { location } = useStore()
+  const pincode = location.pincode || undefined
   const [products, setProducts] = useState<Product[]>([])
   const [stores, setStores] = useState<Store[]>([])
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
-      const [storesData, productsData] = await Promise.all([
-        getStores(),
-        query ? searchProducts(query) : category ? getProductsByCategory(category) : searchProducts(""),
-      ])
-      setStores(storesData)
-      setProducts(productsData)
-      setLoading(false)
+      setError(null)
+      try {
+        const searchQuery = (query || "").trim()
+        const categoryFilter = (category || "").trim()
+        const productsPromise = searchQuery
+          ? searchProducts(searchQuery, pincode)
+          : categoryFilter
+            ? getProductsByCategory(categoryFilter, pincode)
+            : listProducts(undefined, pincode)
+        const [storesData, productsData] = await Promise.all([getStores(), productsPromise])
+        setStores(storesData)
+        setProducts(Array.isArray(productsData) ? productsData : [])
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not load products")
+        setProducts([])
+      } finally {
+        setLoading(false)
+      }
     }
     loadData()
-  }, [query, category])
+  }, [query, category, pincode])
 
   const handleCompare = (productId: string) => {
     window.location.href = `/compare/${productId}`
@@ -48,11 +64,14 @@ function SearchContent() {
     <main className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-          <Link href="/" className="text-xl font-bold text-primary flex items-center gap-2">
-            <ChevronLeft className="w-5 h-5" />
-            PriceHub
-          </Link>
+        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-xl font-bold text-primary flex items-center gap-2">
+              <ChevronLeft className="w-5 h-5" />
+              PriceHub
+            </Link>
+            <DeliveringToBanner className="hidden sm:flex" />
+          </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm">
               Cart
@@ -69,6 +88,14 @@ function SearchContent() {
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">{displayTitle}</h1>
           <p className="text-sm text-muted-foreground">
             {products.length} product{products.length !== 1 ? "s" : ""} found
+            {location.city || location.pincode ? (
+              <span className="ml-1">
+                · Showing products for{" "}
+                <span className="font-medium text-foreground">
+                  {location.city && location.pincode ? `${location.city} (${location.pincode})` : location.city || location.pincode}
+                </span>
+              </span>
+            ) : null}
           </p>
         </div>
 
@@ -127,9 +154,19 @@ function SearchContent() {
                   <p className="text-sm text-muted-foreground">Load more products (infinite scroll demo)</p>
                 </div>
               </>
+            ) : error ? (
+              <div className="text-center py-12">
+                <p className="text-lg text-muted-foreground mb-4">{error}</p>
+                <Button onClick={() => window.location.reload()}>Try again</Button>
+              </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-lg text-muted-foreground mb-4">No products found</p>
+                <p className="text-lg text-muted-foreground mb-2">
+                  No products found{query ? ` for "${query}"` : category ? ` in ${category}` : ""}.
+                </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Try &quot;rice&quot;, &quot;milk&quot;, &quot;vegetables&quot; or browse categories below.
+                </p>
                 <Link href="/">
                   <Button>Back to Home</Button>
                 </Link>

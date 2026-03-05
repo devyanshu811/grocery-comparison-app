@@ -1,14 +1,15 @@
 "use client"
 
-import { Search, MapPin } from "lucide-react"
+import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useStore } from "@/lib/store"
+import { DeliveringToBanner, LocationSelector } from "@/components/location-selector"
 import { useState } from "react"
 
 export function SearchBar() {
   const [query, setQuery] = useState("")
-  const { setSearchQuery } = useStore()
+  const { setSearchQuery, hasLocation } = useStore()
 
   const handleSearch = () => {
     setSearchQuery(query)
@@ -18,11 +19,8 @@ export function SearchBar() {
   return (
     <div className="w-full max-w-2xl mx-auto px-4">
       <div className="space-y-2">
-        <div className="flex gap-2 mb-3">
-          <Button variant="ghost" size="sm" className="text-xs gap-1">
-            <MapPin className="w-3 h-3" />
-            <span>New York</span>
-          </Button>
+        <div className="flex justify-center mb-3">
+          {hasLocation() ? <DeliveringToBanner /> : <LocationSelector variant="full" />}
         </div>
 
         <div className="flex gap-2">
