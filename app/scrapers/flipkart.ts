@@ -69,11 +69,32 @@ export async function scrapeFlipkart(ctx: ScrapeContext): Promise<ScrapeResult> 
     // Flipkart grocery search — use the plain search + grocery SID
     await page.goto(
       `https://www.flipkart.com/search?q=${encodeURIComponent(query)}&marketplace=GROCERY&otracker=search`,
-      { waitUntil: "domcontentloaded", timeout: 30000 }
+      { waitUntil: "domcontentloaded", timeout: 20000 }
     )
+
+    // Detect CAPTCHA / bot challenge early — Flipkart shows recaptcha before any products
+    const isCaptcha = await page.evaluate(() => {
+      const body = document.body.innerText.toLowerCase()
+      return (
+        body.includes("captcha") ||
+        body.includes("robot") ||
+        body.includes("verify you are human") ||
+        !!document.querySelector('[id*="captcha"], [class*="captcha"], iframe[src*="recaptcha"]')
+      )
+    })
+
+    if (isCaptcha) {
+      return {
+        storeId,
+        products: [],
+        success: false,
+        error: "blocked:captcha — Flipkart requires CAPTCHA verification",
+      }
+    }
+
     await page.waitForSelector(
       "._13oc-S, [class*='_1YokD2'], [data-tkid], [class*='productCard'], [class*='_2B099V']",
-      { timeout: 12000 }
+      { timeout: 8000 }
     ).catch(() => {})
     await new Promise((r) => setTimeout(r, 5000))
 

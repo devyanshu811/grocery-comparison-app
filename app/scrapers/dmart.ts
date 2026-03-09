@@ -73,15 +73,63 @@ export async function scrapeDmart(ctx: ScrapeContext): Promise<ScrapeResult> {
       } catch {}
     })
 
+    // Step 1: Visit homepage and select a city — D'Mart gates products behind city selection
+    await page.goto("https://www.dmart.in", { waitUntil: "domcontentloaded", timeout: 20000 })
+    await new Promise((r) => setTimeout(r, 2000))
+
+    // Try to click a city option (Mumbai fallback; covers most product catalog)
+    await page.evaluate(() => {
+      // Look for city modal / dropdown
+      const cityEls = Array.from(
+        document.querySelectorAll('[class*="city"], [class*="City"], [data-city], [class*="location"]')
+      )
+      // Try to click first available city button
+      const btn = cityEls.find((el) => (el as HTMLElement).innerText?.trim())
+      if (btn) (btn as HTMLElement).click()
+    })
+    await new Promise((r) => setTimeout(r, 1500))
+
+    // Click "Mumbai" or first visible city option
+    await page.evaluate(() => {
+      const all = Array.from(document.querySelectorAll("button, li, a, [role='option']"))
+      const mumbai = all.find((el) => {
+        const t = (el as HTMLElement).innerText?.trim().toLowerCase() || ""
+        return t === "mumbai" || t.startsWith("mumbai")
+      })
+      const first = all.find((el) => {
+        const t = (el as HTMLElement).innerText?.trim().toLowerCase() || ""
+        return (
+          t.length > 2 &&
+          t.length < 30 &&
+          !t.includes("select") &&
+          !t.includes("city") &&
+          /^[a-z]/.test(t)
+        )
+      })
+      const target = mumbai || first
+      if (target) (target as HTMLElement).click()
+    })
+    await new Promise((r) => setTimeout(r, 1500))
+
+    // Step 2: Navigate to search
     await page.goto(
       `https://www.dmart.in/product/search?search_text=${encodeURIComponent(query)}&type=search`,
-      { waitUntil: "domcontentloaded", timeout: 30000 }
+      { waitUntil: "domcontentloaded", timeout: 25000 }
     )
+
+    // Wait for product cards — D'Mart uses MUI Grid + custom Tailwind classes
     await page.waitForSelector(
-      "[class*='product'], .product-item-section, .col-xl-2, [class*='ProductInfo']",
+      [
+        "[class*='MuiGrid-grid-md-3']",
+        "[class*='MuiGrid-grid-md-4']",
+        "[class*='product-card']",
+        "[class*='ProductCard']",
+        ".product-item-section",
+        "[class*='ProductInfo']",
+      ].join(", "),
       { timeout: 12000 }
     ).catch(() => {})
-    await new Promise((r) => setTimeout(r, 6000))
+    await new Promise((r) => setTimeout(r, 4000))
 
     if (captured.length === 0) {
       // Try calling D'Mart's API from within page context
@@ -122,10 +170,12 @@ export async function scrapeDmart(ctx: ScrapeContext): Promise<ScrapeResult> {
         }> = []
         const seen = new Set<string>()
 
-        // D'Mart uses MUI Grid with md-3 or md-4 column sizes as product card containers
+        // D'Mart uses MUI Grid (md-3/md-4) or custom product-card class
         const containers = [
           ...Array.from(document.querySelectorAll("[class*='MuiGrid-grid-md-3']")),
           ...Array.from(document.querySelectorAll("[class*='MuiGrid-grid-md-4']")),
+          ...Array.from(document.querySelectorAll("[class*='product-card'], [class*='ProductCard']")),
+          ...Array.from(document.querySelectorAll(".product-item-section")),
         ]
 
         containers.forEach((card) => {

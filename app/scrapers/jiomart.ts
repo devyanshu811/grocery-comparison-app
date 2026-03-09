@@ -77,14 +77,23 @@ export async function scrapeJiomart(ctx: ScrapeContext): Promise<ScrapeResult> {
       { waitUntil: "domcontentloaded", timeout: 30000 }
     )
 
-    // Wait generously — Magento loads a lot of JS before rendering cards
+    // Wait for either the React PLP cards or legacy Magento items
     await page.waitForSelector(
-      "li.item.product.product-item, ol.products, .plp-card-container, [class*='plp'], [data-index]",
-      { timeout: 12000 }
+      [
+        // React rewrite (current JioMart)
+        "[class*='plp-card']",
+        "[class*='ProductCard']",
+        "[class*='product-card']",
+        "[data-product-id]",
+        // Legacy Magento (fallback)
+        "li.item.product.product-item",
+        ".plp-card-container",
+      ].join(", "),
+      { timeout: 15000 }
     ).catch(() => {})
-    await new Promise((r) => setTimeout(r, 6000))
+    await new Promise((r) => setTimeout(r, 4000))
 
-    // DOM extraction
+    // DOM extraction — covers both JioMart's React rewrite and legacy Magento
     const domProducts = await page.evaluate((sid) => {
       const items: Array<{
         name: string
@@ -95,50 +104,66 @@ export async function scrapeJiomart(ctx: ScrapeContext): Promise<ScrapeResult> {
         storeId: string
       }> = []
 
-      // Try multiple selectors in priority order
-      const selectors = [
+      // React rewrite selectors (current JioMart as of 2025)
+      const reactSelectors = [
+        "[class*='plp-card']",
+        "[class*='ProductCard']",
+        "[class*='product-card']",
+        "[data-product-id]",
+      ]
+
+      // Magento legacy selectors
+      const magentoSelectors = [
         "li.item.product.product-item",
         ".plp-card-container",
         "[class*='product-item']",
-        "[class*='ProductCard']",
-        "[data-index]",
       ]
 
-      let parsed = false
-      for (const sel of selectors) {
+      const allSelectors = [...reactSelectors, ...magentoSelectors]
+      const seen = new Set<string>()
+
+      for (const sel of allSelectors) {
         const cards = document.querySelectorAll(sel)
         if (!cards.length) continue
 
         cards.forEach((el) => {
+          // Name: try data attrs first, then text elements
           const nameEl =
-            el.querySelector("a.product-item-link, .product-item-name a, strong.product-item-name") ||
-            el.querySelector("[class*='plp-card-title'], [class*='title'], [class*='name']")
+            el.querySelector("[class*='product-name'], [class*='productName'], [class*='title']") ||
+            el.querySelector("a.product-item-link, strong.product-item-name") ||
+            el.querySelector("h3, h4, a[title]")
           const name =
             (nameEl as HTMLAnchorElement)?.getAttribute("title") ||
             (nameEl as HTMLElement)?.innerText?.trim() ||
             ""
 
+          // Price: prefer discounted/selling price
           const priceEl =
+            el.querySelector("[class*='discounted-price'], [class*='selling-price'], [class*='final-price']") ||
             el.querySelector(".special-price .price, .price-box .price") ||
-            el.querySelector("[class*='final-price'], [class*='discounted'], [class*='price']")
+            el.querySelector("[class*='price']")
           const price =
             parseFloat(((priceEl as HTMLElement)?.innerText || "0").replace(/[^\d.]/g, "")) || 0
 
-          const qty = ((el.querySelector("[class*='unit'], [class*='weight'], [class*='qty'], [class*='pack']") as HTMLElement)?.innerText || "").trim()
+          const qtyEl = el.querySelector(
+            "[class*='unit'], [class*='weight'], [class*='qty'], [class*='pack'], [class*='size']"
+          ) as HTMLElement | null
+          const qty = qtyEl?.innerText?.trim() || ""
 
-          const img =
-            (el.querySelector("img.product-image-photo") as HTMLImageElement)?.src ||
-            (el.querySelector("img[data-src]") as HTMLImageElement)?.getAttribute("data-src") ||
-            (el.querySelector("img") as HTMLImageElement)?.src || ""
+          const imgEl =
+            (el.querySelector("img.product-image-photo") as HTMLImageElement) ||
+            (el.querySelector("img[data-src]") as HTMLImageElement) ||
+            (el.querySelector("img") as HTMLImageElement)
+          const img = imgEl?.src || imgEl?.getAttribute("data-src") || ""
 
-          if (name && price > 0) {
+          if (name && price > 0 && !seen.has(name)) {
+            seen.add(name)
             items.push({ name, price, quantity: qty, image: img, category: "General", storeId: sid })
           }
         })
 
-        if (items.length > 0) { parsed = true; break }
+        if (items.length > 0) break
       }
-      void parsed
 
       return items
     }, storeId)

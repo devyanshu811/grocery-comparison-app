@@ -14,9 +14,15 @@ import { detectLocation } from "@/lib/location"
  * Children (main app) render only after location is set or user dismisses.
  */
 export function LocationGate({ children }: { children: React.ReactNode }) {
-  const { hasLocation, locationPromptShown, setLocation, setLocationPromptShown } = useStore()
+  const { hasLocation, validateLocation, locationPromptShown, setLocation, setLocationPromptShown } = useStore()
   const [showPrompt, setShowPrompt] = useState(false)
   const [detecting, setDetecting] = useState(true)
+
+  // Validate stored location on mount — clears expired/invalid data so the
+  // gate re-prompts the user instead of silently using a stale pincode.
+  useEffect(() => {
+    validateLocation()
+  }, [validateLocation])
 
   const tryDetect = useCallback(async () => {
     if (hasLocation()) return
@@ -38,7 +44,6 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
       tryDetect()
     }
   }, [hasLocation, locationPromptShown, tryDetect])
-
   const handleDismiss = () => {
     useStore.getState().setLocationPromptShown(true)
     setShowPrompt(false)

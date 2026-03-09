@@ -12,6 +12,24 @@ import { DeliveringToBanner } from "@/components/location-selector"
 import { ChevronLeft, Filter, X } from "lucide-react"
 import Link from "next/link"
 
+interface StoreSummary {
+  storeId: string
+  count: number
+  success: boolean
+  error: string | null
+}
+
+const STORE_LABELS: Record<string, string> = {
+  blinkit: "Blinkit",
+  zepto: "Zepto",
+  swiggy: "Swiggy",
+  bigbasket: "BigBasket",
+  jiomart: "JioMart",
+  amazon_now: "Amazon",
+  flipkart_minutes: "Flipkart",
+  dmart_ready: "D'Mart",
+}
+
 function SearchContent() {
   const searchParams = useSearchParams()
   const query = searchParams.get("q") || ""
@@ -23,22 +41,57 @@ function SearchContent() {
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isMockData, setIsMockData] = useState(false)
+  const [storeSummary, setStoreSummary] = useState<StoreSummary[]>([])
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
       setError(null)
+      setIsMockData(false)
+      setStoreSummary([])
+
       try {
         const searchQuery = (query || "").trim()
         const categoryFilter = (category || "").trim()
-        const productsPromise = searchQuery
-          ? searchProducts(searchQuery, pincode)
-          : categoryFilter
-            ? getProductsByCategory(categoryFilter, pincode)
-            : listProducts(undefined, pincode)
-        const [storesData, productsData] = await Promise.all([getStores(), productsPromise])
-        setStores(storesData)
-        setProducts(Array.isArray(productsData) ? productsData : [])
+        const activeQuery = searchQuery || categoryFilter
+
+        // For active queries, hit /api/stores/search directly to get live data + per-store summary
+        if (activeQuery) {
+          const params = new URLSearchParams({ q: activeQuery })
+          if (pincode) params.set("pincode", pincode)
+          if (location.city) params.set("city", location.city)
+
+          const [liveRes, storesData] = await Promise.all([
+            fetch(`/api/stores/search?${params}`).then((r) => r.json()).catch(() => null),
+            getStores(),
+          ])
+
+          setStores(storesData)
+
+          if (liveRes?.summary) setStoreSummary(liveRes.summary)
+
+          if (liveRes?.products?.length > 0) {
+            setProducts(liveRes.products)
+            setIsMockData(false)
+          } else {
+            // No live results — fall back to mock data via the RPC provider
+            const mockProducts = searchQuery
+              ? await searchProducts(searchQuery, pincode)
+              : await getProductsByCategory(categoryFilter, pincode)
+            setProducts(Array.isArray(mockProducts) ? mockProducts : [])
+            setIsMockData(true)
+          }
+        } else {
+          // No query — just list products from the provider (mock)
+          const [storesData, productsData] = await Promise.all([
+            getStores(),
+            listProducts(undefined, pincode),
+          ])
+          setStores(storesData)
+          setProducts(Array.isArray(productsData) ? productsData : [])
+          setIsMockData(true)
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not load products")
         setProducts([])
@@ -92,12 +145,66 @@ function SearchContent() {
               <span className="ml-1">
                 · Showing products for{" "}
                 <span className="font-medium text-foreground">
-                  {location.city && location.pincode ? `${location.city} (${location.pincode})` : location.city || location.pincode}
+                  {location.city && location.pincode
+                    ? `${location.city} (${location.pincode})`
+                    : location.city || location.pincode}
                 </span>
               </span>
             ) : null}
           </p>
         </div>
+
+        {/* Mock data warning */}
+        {isMockData && !loading && (query || category) && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <span className="mt-0.5 shrink-0">⚠️</span>
+            <span>
+              Showing <strong>sample data</strong> — live prices from grocery apps are
+              unavailable right now. Results may not reflect actual prices or availability.
+            </span>
+          </div>
+        )}
+
+        {/* Per-store status row */}
+        {storeSummary.length > 0 && !loading && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            {storeSummary.map((s) => {
+              const label = STORE_LABELS[s.storeId] || s.storeId
+              const isCaptcha = s.error?.includes("captcha")
+              const isBlocked = isCaptcha || s.error?.includes("blocked")
+              return (
+                <div
+                  key={s.storeId}
+                  title={s.error ?? undefined}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+                    s.count > 0
+                      ? "border-green-200 bg-green-50 text-green-700"
+                      : isBlocked
+                      ? "border-gray-200 bg-gray-50 text-gray-400"
+                      : !s.success
+                      ? "border-red-200 bg-red-50 text-red-600"
+                      : "border-orange-200 bg-orange-50 text-orange-600"
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      s.count > 0
+                        ? "bg-green-500"
+                        : isBlocked
+                        ? "bg-gray-300"
+                        : !s.success
+                        ? "bg-red-400"
+                        : "bg-orange-400"
+                    }`}
+                  />
+                  {label}
+                  {s.count > 0 && <span className="opacity-70">· {s.count}</span>}
+                  {isBlocked && <span className="opacity-60">· blocked</span>}
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         <div className="flex gap-6">
           {/* Filters - Hidden on mobile, shown in modal */}

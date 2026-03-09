@@ -57,12 +57,52 @@ export async function scrapeBigBasket(ctx: ScrapeContext): Promise<ScrapeResult>
       `https://www.bigbasket.com/ps/?q=${encodeURIComponent(query)}&pincode=${pincode}`,
       { waitUntil: "domcontentloaded", timeout: 25000 }
     )
+    await new Promise((r) => setTimeout(r, 2000))
+
+    // Detect CAPTCHA or location/pincode gate — return early instead of waiting 12s
+    const blocked = await page.evaluate(() => {
+      const body = document.body.innerText.toLowerCase()
+      const hasCaptcha =
+        body.includes("captcha") ||
+        body.includes("verify you") ||
+        !!document.querySelector('[id*="captcha"], [class*="captcha"], iframe[src*="recaptcha"]')
+      const hasLocationGate =
+        !!document.querySelector(
+          '[class*="location-modal"], [class*="pincode-modal"], [class*="DeliveryModal"], [class*="delivery-location"]'
+        ) ||
+        (body.includes("enter pincode") || body.includes("enter your pincode") || body.includes("select location"))
+      return { hasCaptcha, hasLocationGate }
+    })
+
+    if (blocked.hasCaptcha) {
+      return { storeId, products: [], success: false, error: "blocked:captcha" }
+    }
+    if (blocked.hasLocationGate) {
+      // Try entering pincode in the modal before giving up
+      await page.evaluate((pc) => {
+        const input = document.querySelector(
+          'input[placeholder*="pincode" i], input[placeholder*="pin" i], input[name*="pincode" i]'
+        ) as HTMLInputElement | null
+        if (input) {
+          input.value = pc
+          input.dispatchEvent(new Event("input", { bubbles: true }))
+          const form = input.closest("form")
+          if (form) form.dispatchEvent(new Event("submit", { bubbles: true }))
+          else {
+            const btn = document.querySelector('button[type="submit"], [class*="confirm"], [class*="apply"]') as HTMLElement | null
+            if (btn) btn.click()
+          }
+        }
+      }, pincode)
+      await new Promise((r) => setTimeout(r, 2000))
+    }
+
     // Wait for at least one ₹ price to appear in the DOM
     await page.waitForFunction(
       () => document.body.innerText.includes("₹"),
-      { timeout: 12000 }
+      { timeout: 10000 }
     ).catch(() => {})
-    await new Promise((r) => setTimeout(r, 3000))
+    await new Promise((r) => setTimeout(r, 2000))
 
     // Map captured API products
     const apiProducts: ScrapedProduct[] = captured

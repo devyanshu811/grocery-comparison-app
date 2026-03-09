@@ -112,6 +112,77 @@ export async function scrapeSwiggy(ctx: ScrapeContext): Promise<ScrapeResult> {
       })
       .filter((p) => p.price > 0)
 
+    // DOM fallback — runs when API interception returned nothing
+    if (products.length === 0) {
+      const domProducts = await page.evaluate((sid: string) => {
+        const items: Array<{
+          name: string; price: number; quantity: string; image: string; category: string; storeId: string
+        }> = []
+        const seen = new Set<string>()
+
+        // Try Swiggy's known product card selector first
+        const cards = Array.from(
+          document.querySelectorAll('[data-testid="product-card"], [class*="product-card"], [class*="ProductCard"]')
+        )
+
+        for (const card of cards) {
+          const nameEl =
+            (card.querySelector('[class*="product-name"], [class*="productName"], h3, h4, .product-name') as HTMLElement) ||
+            (card.querySelector("a") as HTMLElement)
+          const name = nameEl?.innerText?.trim() || nameEl?.getAttribute("title") || ""
+
+          const priceEl = card.querySelector(
+            '[class*="product-price"], [class*="price"], [class*="Price"]'
+          ) as HTMLElement | null
+          const priceText = priceEl?.innerText || ""
+          const price = parseFloat(priceText.replace(/[^\d.]/g, "")) || 0
+
+          const imgEl = card.querySelector("img") as HTMLImageElement | null
+          const img = imgEl?.src || ""
+
+          if (name && price > 0 && !seen.has(name)) {
+            seen.add(name)
+            items.push({ name, price, quantity: "", image: img, category: "General", storeId: sid })
+          }
+        }
+
+        // Universal price-walk fallback if no cards matched
+        if (items.length === 0) {
+          const allEls = Array.from(document.querySelectorAll("div, span, p, strong"))
+          for (const el of allEls) {
+            if (el.children.length > 3) continue
+            const text = (el as HTMLElement).innerText?.trim() || ""
+            if (!/₹\s*\d/.test(text)) continue
+            const price = parseFloat(text.replace(/[^\d.]/g, "")) || 0
+            if (price <= 0 || price > 10000) continue
+
+            let card: Element = el
+            for (let i = 0; i < 8; i++) {
+              if (!card.parentElement) break
+              card = card.parentElement
+              if (card.querySelector("img")) break
+            }
+
+            const imgEl = card.querySelector("img") as HTMLImageElement | null
+            const img = imgEl?.src || ""
+            const texts = Array.from(card.querySelectorAll("div, span, p, strong, h3, a"))
+              .map((e) => (e as HTMLElement).innerText?.trim() || "")
+              .filter((t) => t.length > 3 && t.length < 120 && !/^₹/.test(t) && !/^\d+$/.test(t))
+            const name = texts.sort((a, b) => b.length - a.length)[0] || ""
+
+            if (!name || seen.has(name)) continue
+            seen.add(name)
+            const qty = texts.find((t) => /\d+\s*(g|kg|ml|l|pcs|piece|pack)/i.test(t)) || ""
+            items.push({ name, price, quantity: qty, image: img, category: "General", storeId: sid })
+          }
+        }
+
+        return items
+      }, storeId)
+
+      products.push(...domProducts)
+    }
+
     return { storeId, products, success: true }
   } catch (e) {
     return { storeId, products: [], success: false, error: (e as Error).message }

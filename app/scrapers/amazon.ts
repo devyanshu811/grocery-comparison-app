@@ -4,7 +4,7 @@
  * Amazon is the most bot-tolerant of the 8 stores.
  */
 
-import type { ScrapeContext, ScrapeResult } from "./types"
+import type { ScrapeContext, ScrapeResult, ScrapedProduct } from "./types"
 import { newPage } from "./browser"
 
 export async function scrapeAmazon(ctx: ScrapeContext): Promise<ScrapeResult> {
@@ -18,29 +18,32 @@ export async function scrapeAmazon(ctx: ScrapeContext): Promise<ScrapeResult> {
       { waitUntil: "domcontentloaded", timeout: 30000 }
     )
 
-    // Wait for product cards to appear (up to 10s)
+    // Wait for product cards to appear (up to 10 s)
     await page.waitForSelector('[data-component-type="s-search-result"]', { timeout: 10000 }).catch(() => {})
     await new Promise((r) => setTimeout(r, 2000))
 
-    const products = await page.evaluate((sid) => {
-      const items: ScrapedProduct[] = []
+    // page.evaluate runs inside the browser; ScrapedProduct is only used here
+    // for the return-type annotation so TypeScript is happy at the call-site.
+    const products = await page.evaluate((sid: string) => {
+      type Item = { name: string; price: number; quantity: string; image: string; category: string; storeId: string }
+      const items: Item[] = []
 
       document.querySelectorAll('[data-component-type="s-search-result"]').forEach((el) => {
-        // Name: try multiple selectors
+        // Name — try several selectors in priority order
         const nameEl =
           el.querySelector("h2 a span.a-text-normal") ||
           el.querySelector("h2 span") ||
           el.querySelector("h2 a span")
         const name = (nameEl as HTMLElement)?.innerText?.trim() || ""
 
-        // Price: try the offscreen price first (most accurate), then individual parts
+        // Price — prefer the visually-hidden "a-offscreen" span (most reliable)
         const offscreen = el.querySelector("span.a-price span.a-offscreen") as HTMLElement | null
         let price = 0
         if (offscreen) {
           price = parseFloat(offscreen.innerText.replace(/[^\d.]/g, "")) || 0
         } else {
           const whole = (el.querySelector(".a-price-whole") as HTMLElement)?.innerText?.replace(/[^\d]/g, "") || ""
-          const frac = (el.querySelector(".a-price-fraction") as HTMLElement)?.innerText?.replace(/[^\d]/g, "") || "00"
+          const frac  = (el.querySelector(".a-price-fraction") as HTMLElement)?.innerText?.replace(/[^\d]/g, "") || "00"
           if (whole) price = parseFloat(`${whole}.${frac}`) || 0
         }
 
@@ -54,14 +57,10 @@ export async function scrapeAmazon(ctx: ScrapeContext): Promise<ScrapeResult> {
       return items
     }, storeId)
 
-    return { storeId, products, success: true }
+    return { storeId, products: products as ScrapedProduct[], success: true }
   } catch (e) {
     return { storeId, products: [], success: false, error: (e as Error).message }
   } finally {
     await page.close().catch(() => {})
   }
-}
-
-interface ScrapedProduct {
-  name: string; price: number; quantity: string; image: string; category: string; storeId: string
 }

@@ -10,12 +10,16 @@ let _browser: Browser | null = null
 let _launching = false
 
 export async function getBrowser(): Promise<Browser> {
-  if (_browser && _browser.connected) return _browser
+  // Use isConnected() — the deprecated .connected property is unreliable in v24+
+  if (_browser && _browser.isConnected()) return _browser
   if (_launching) {
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 500))
-      if (_browser && _browser.connected) return _browser
+      if (_browser && _browser.isConnected()) return _browser
     }
+    // Timed out waiting for launch — reset and try fresh
+    _launching = false
+    _browser = null
   }
 
   _launching = true
@@ -36,11 +40,17 @@ export async function getBrowser(): Promise<Browser> {
       ],
       ignoreDefaultArgs: ["--enable-automation"],
     })
+    // Auto-reset when the browser crashes or is killed
     _browser.on("disconnected", () => {
+      console.warn("[browser] Puppeteer disconnected — will restart on next request")
       _browser = null
       _launching = false
     })
     return _browser
+  } catch (e) {
+    _launching = false
+    _browser = null
+    throw e
   } finally {
     _launching = false
   }
